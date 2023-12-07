@@ -1,14 +1,20 @@
+use std::sync::{Arc};
+
 use actix_web::{guard, web, App, HttpRequest, HttpResponse, HttpServer, Result, Responder, get, route};
 use async_graphql::{http::{GraphQLPlaygroundConfig, playground_source}, Schema};
 use async_graphql_actix_web::{GraphQLSubscription, GraphQLRequest, GraphQLResponse};
 use actix_web_lab::respond::Html;
-// Add the books crate as a dependency
+use futures_util::lock::Mutex;
+use tonic::Request;
 
-mod books;
-use books::{BooksSchema, MutationRoot, QueryRoot, Storage, SubscriptionRoot};
+
+mod schema;
+use schema::{PokerSchema, MutationRoot, QueryRoot, Storage, SubscriptionRoot};
+
+use schema::deal::dealer_client::DealerClient;
 
 async fn index_ws(
-    schema: web::Data<BooksSchema>,
+    schema: web::Data<PokerSchema>,
     req: HttpRequest,
     payload: web::Payload,
 ) -> Result<HttpResponse> {
@@ -17,7 +23,7 @@ async fn index_ws(
 
 /// GraphQL endpoint
 #[route("/graphql", method = "GET", method = "POST")]
-async fn graphql(schema: web::Data<BooksSchema>, req: GraphQLRequest) -> GraphQLResponse {
+async fn graphql(schema: web::Data<PokerSchema>, req: GraphQLRequest) -> GraphQLResponse {
     schema.execute(req.into_inner()).await.into()
 }
 
@@ -29,15 +35,18 @@ async fn graphql_playground() -> impl Responder {
     ))
 }
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("GraphiQL IDE: http://localhost:8099");
 
+    let deal_client: schema::DealService = Arc::new(Mutex::new(DealerClient::connect("http://127.0.0.1:5003").await?));
     let schema = Schema::build(QueryRoot, MutationRoot, SubscriptionRoot)
     .data(Storage::default())
+    .data(deal_client)
+    //.data(subscriber)
     .finish();
 
-    HttpServer::new(move || {
+    let _ = HttpServer::new(move || {
         App::new()
         .app_data(web::Data::new(schema.clone()))
         .service(graphql)
@@ -51,5 +60,7 @@ async fn main() -> std::io::Result<()> {
     })
     .bind("0.0.0.0:8099")?
     .run()
-    .await
+    .await?;
+
+    Ok(())
 }
