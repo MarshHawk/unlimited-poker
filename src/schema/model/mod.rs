@@ -66,8 +66,8 @@ pub struct PlayerEvent {
     pub action: PlayerAction,
     pub amount: Decimal,
     pub street_type: StreetType,
-    pub current_stack: Option<Decimal>,
-    pub current_pot: Option<Decimal>,
+    pub current_stack: Decimal,
+    pub current_pot: Decimal,
 }
 
 #[Object]
@@ -88,11 +88,11 @@ impl PlayerEvent {
         self.street_type
     }
 
-    async fn current_stack(&self) -> Option<Decimal> {
+    async fn current_stack(&self) -> Decimal {
         self.current_stack
     }
 
-    async fn current_pot(&self) -> Option<Decimal> {
+    async fn current_pot(&self) -> Decimal {
         self.current_pot
     }
 }
@@ -116,7 +116,7 @@ pub enum StreetType {
 pub struct StreetEvent {
     pub street_type: StreetType,
     pub current_active_players: Vec<ActivePlayer>,
-    pub pot: f64,
+    pub pot: Decimal,
     pub cycle_count: u32,
     pub should_increment_cycle: bool,
 }
@@ -131,7 +131,7 @@ impl StreetEvent {
         &self.current_active_players
     }
 
-    async fn pot(&self) -> f64 {
+    async fn pot(&self) -> Decimal {
         self.pot
     }
 
@@ -146,41 +146,41 @@ impl StreetEvent {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActivePlayer {
-    pub id: String,
-    pub bet: f64,
-    pub stack: f64,
-    pub is_inactive: Option<bool>,
+    pub id: ID,
+    pub bet: Decimal,
+    pub stack: Decimal,
+    pub is_inactive: bool,
 }
 
 #[Object]
 impl ActivePlayer {
-    async fn id(&self) -> &str {
+    async fn id(&self) -> &ID {
         &self.id
     }
 
-    async fn bet(&self) -> f64 {
+    async fn bet(&self) -> Decimal {
         self.bet
     }
 
-    async fn stack(&self) -> f64 {
+    async fn stack(&self) -> Decimal {
         self.stack
     }
 
-    async fn is_inactive(&self) -> Option<bool> {
+    async fn is_inactive(&self) -> bool {
         self.is_inactive
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, InputObject)]
 pub struct DealInput {
-    pub players: Vec<Player>,
-    pub table_id: String,
+    pub players: Vec<PlayerInput>,
+    pub table_id: ID,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, InputObject)]
 pub struct Player {
-    pub id: String,
-    pub stack: Option<f64>,
+    pub id: ID,
+    pub stack: Decimal,
     pub cards: Vec<String>,
     pub score: f64,
     pub description: String,
@@ -188,11 +188,11 @@ pub struct Player {
 
 #[Object]
 impl Player {
-    async fn id(&self) -> &str {
+    async fn id(&self) -> &ID {
         &self.id
     }
 
-    async fn stack(&self) -> Option<f64> {
+    async fn stack(&self) -> Decimal {
         self.stack
     }
 
@@ -207,4 +207,10 @@ impl Player {
     async fn description(&self) -> &str {
         &self.description
     }
+}
+
+#[derive(Clone, Debug, PartialEq, InputObject)]
+pub struct PlayerInput {
+    pub id: ID,
+    pub stack: Decimal
 }

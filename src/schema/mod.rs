@@ -1,14 +1,15 @@
 use std::{sync::Arc, time::Duration};
 
-use async_graphql::{Context, Object, Result, Enum, Schema, Subscription, ID};
+use async_graphql::{Context, Enum, Object, Result, Schema, Subscription, ID};
 use futures_util::{lock::Mutex, Stream, StreamExt};
+use rust_decimal::Decimal;
 use slab::Slab;
 
 use tonic::Request;
 use uuid::Uuid;
 
 mod model;
-use model::{Hand, Cards};
+use model::{Cards, DealInput, Hand, PlayerAction, PlayerEvent, StreetEvent, StreetType, ActivePlayer};
 mod simple_broker;
 use simple_broker::SimpleBroker;
 pub mod deal {
@@ -53,7 +54,6 @@ impl DealEvent {
     }
 }
 
-
 pub struct QueryRoot;
 
 #[Object]
@@ -68,37 +68,96 @@ pub struct MutationRoot;
 
 #[Object]
 impl MutationRoot {
-    async fn deal(&self, ctx: &Context<'_>, player_ids: Vec<ID>) -> Result<ID> {
+    async fn deal(&self, ctx: &Context<'_>, deal_input: DealInput) -> Result<ID> {
         let deal_client = ctx.data_unchecked::<DealService>();
         let req = Request::new(HandRequest {
             player_count: 3 as i32,
         });
-        ////println!("deal request: {:#?}", ctx.data_unchecked);
-        ////let deal_client = ctx.data_unchecked::<DealService>().clone();
-        let hand: HandResponse = deal_client.lock().await.deal(req).await?.into_inner();
-        println!("Requested deal: {:#?}", hand);
+
+        let deal_result: HandResponse = deal_client.lock().await.deal(req).await?.into_inner();
+        let board = deal_result.board.unwrap();
         let mut hands = ctx.data_unchecked::<Storage>().lock().await;
         let entry = hands.vacant_entry();
         let id: ID = entry.key().into();
+        //let id: ID = Uuid::new_v4().into();
         let hand = Hand {
             id: id.clone(),
-            table_id: String::from("table_id").into(),
-            players: vec![],
+            table_id: deal_input.table_id.into(),
+            players: deal_input
+                .players
+                .iter()
+                .enumerate()
+                .map(|(i, p)| model::Player {
+                    id: p.id.to_owned(),
+                    stack: p.stack,
+                    score: deal_result.hands[i].score,
+                    cards: deal_result.hands[i].cards.clone(),
+                    description: deal_result.hands[i].description.clone(),
+                })
+                .collect(),
             cards: Cards {
-                flop: vec![],
-                turn: String::from(""),
-                river: String::from(""),
+                flop: board.flop,
+                turn: board.turn,
+                river: board.river,
             },
-            player_events: vec![],
-            street_events: vec![],
+            player_events: deal_input
+                .players
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| [0, 1].contains(i))
+                .map(|(i, p)| PlayerEvent {
+                    amount: if i == 0 {
+                        Decimal::new(10, 2)
+                    } else {
+                        Decimal::new(20, 2)
+                    },
+                    street_type: StreetType::Preflop,
+                    action: PlayerAction::Bet,
+                    player_id: p.id.to_owned(),
+                    current_stack: if i == 0 {
+                        p.stack - Decimal::new(10, 2)
+                    } else {
+                        p.stack - Decimal::new(20, 2)
+                    },
+                    current_pot: Decimal::new(30, 2),
+                })
+                .collect(),
+            street_events: vec![StreetEvent {
+                pot: Decimal::new(30, 2),
+                should_increment_cycle: false,
+                cycle_count: 0,
+                current_active_players: deal_input
+                    .players
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| ActivePlayer {
+                        id: p.id.to_owned(),
+                        stack: p.stack,
+                        bet: if i == 0 {
+                                Decimal::new(10, 2)
+                            } else if i == 1 {
+                                Decimal::new(20, 2)
+                            }
+                            else {
+                                Decimal::new(0, 2)
+                            },
+                        is_inactive: false,
+                    })
+                    .collect(),
+                street_type: StreetType::Preflop,
+            }],
         };
 
+        println!("Requested deal: {:#?}", hand);
+        
+
         entry.insert(hand);
+
         SimpleBroker::publish(DealEvent {
             mutation_type: MutationType::Created,
             id: id.clone(),
         });
-        Ok(id)
+        Ok(id.clone())
     }
 }
 
