@@ -116,9 +116,7 @@ pub enum StreetType {
 pub struct StreetEvent {
     pub street_type: StreetType,
     pub current_active_players: Vec<ActivePlayer>,
-    pub pot: Decimal,
-    pub cycle_count: u32,
-    pub should_increment_cycle: bool,
+    pub pot: Decimal
 }
 
 #[Object]
@@ -135,13 +133,6 @@ impl StreetEvent {
         self.pot
     }
 
-    async fn cycle_count(&self) -> u32 {
-        self.cycle_count
-    }
-
-    async fn should_increment_cycle(&self) -> bool {
-        self.should_increment_cycle
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -150,6 +141,7 @@ pub struct ActivePlayer {
     pub bet: Decimal,
     pub stack: Decimal,
     pub is_inactive: bool,
+    pub is_big_blind: bool,
 }
 
 #[Object]
@@ -168,6 +160,10 @@ impl ActivePlayer {
 
     async fn is_inactive(&self) -> bool {
         self.is_inactive
+    }
+
+    async fn is_big_blind(&self) -> bool {
+        self.is_big_blind
     }
 }
 
