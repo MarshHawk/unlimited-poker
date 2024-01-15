@@ -11,6 +11,7 @@ use async_graphql::{
 };
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse, GraphQLSubscription};
 use futures_util::lock::Mutex;
+use unlimited_poker::bootstrap::{bootstrap, bootstrap_schema};
 
 //mod schema;
 //use schema::{
@@ -20,8 +21,7 @@ use futures_util::lock::Mutex;
 //use schema::deal::dealer_client::DealerClient;
 
 
-mod bootstrap;
-use bootstrap::{bootstrap, bootstrap_schema};
+
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

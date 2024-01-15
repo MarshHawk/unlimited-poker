@@ -116,12 +116,12 @@ async fn graphql_playground() -> impl Responder {
 }
 
 pub async fn bootstrap_schema() -> Result<Schema<QueryRoot, MutationRoot, SubscriptionRoot>, Box<dyn std::error::Error>> {
-    let deal_client: schema::DealService = Arc::new(Mutex::new(
-        DealerClient::connect("http://127.0.0.1:5003").await?,
-    ));
+    // let deal_client: schema::DealService = Arc::new(Mutex::new(
+    //     DealerClient::connect("http://127.0.0.1:5003").await?,
+    // ));
     Ok(Schema::build(QueryRoot, MutationRoot, SubscriptionRoot)
         .data(Storage::default())
-        .data(deal_client)
+        // .data(deal_client)
         .finish())
 }
 

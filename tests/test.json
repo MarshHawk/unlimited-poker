@@ -1,0 +1,23 @@
+{
+    "operationName": "DealHand",
+    "variables": {
+        "dealInput": {
+            "players": [
+                {
+                    "id": "sean",
+                    "stack": 1000
+                },
+                {
+                    "id": "neuro",
+                    "stack": 1000
+                },
+                {
+                    "id": "octo",
+                    "stack": 1000
+                }
+            ],
+            "tableId": "123"
+        }
+    },
+    "query": "mutation DealHand($dealInput: DealInput!) {\n  deal(dealInput: $dealInput)\n}\n"
+}

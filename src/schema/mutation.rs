@@ -2,6 +2,7 @@ use async_graphql::{Context, Object, Result, ID};
 use async_trait::async_trait;
 use float_ord::FloatOrd;
 use rust_decimal::Decimal;
+use deuces_rs::{GameDealer, RandomCardShuffler, builder::Dealer};
 use tonic::Request;
 
 use crate::bootstrap::schema::{
@@ -44,13 +45,16 @@ impl GameMutations for MutationRoot {
         //println!("user_token: {}", user_token);
         println!("table_token: {}", table_token);
 
-        let deal_client = ctx.data_unchecked::<DealService>();
-        let req = Request::new(HandRequest {
-            player_count: 3 as i32,
-        });
+        // let deal_client = ctx.data_unchecked::<DealService>();
+        // let req = Request::new(HandRequest {
+        //     player_count: 3 as i32,
+        // });
 
-        let deal_result: HandResponse = deal_client.lock().await.deal(req).await?.into_inner();
-        let board = deal_result.board.unwrap();
+        let shuffler = RandomCardShuffler;
+        let dealer: GameDealer<RandomCardShuffler>   = GameDealer::new(shuffler);
+
+        let deal_result = dealer.deal(3);//deal_client.lock().await.deal(req).await?.into_inner();
+        let board = deal_result.board;
         let mut hands = ctx.data_unchecked::<Storage>().lock().await;
         let entry = hands.vacant_entry();
         let id: ID = entry.key().into();

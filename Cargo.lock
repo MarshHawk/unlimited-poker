@@ -55,35 +55,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-gql-ws-stream"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "actix-web-lab",
- "async-graphql",
- "async-graphql-actix-web",
- "async-stream",
- "async-trait",
- "float-ord",
- "futures-channel",
- "futures-util",
- "mockall",
- "once_cell",
- "prost 0.12.3",
- "rust_decimal",
- "serde",
- "serde_json",
- "slab",
- "tokio",
- "tokio-stream",
- "tonic",
- "tonic-build",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "actix-http"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -924,6 +895,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "deuces-rs"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c517493393e57cfa2504f08e122aee69d5b74b113ffcd07ac8ddd17024b9b09"
+dependencies = [
+ "itertools 0.12.0",
+ "rand",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1329,6 +1310,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25db6b064527c5d482d0423354fcd07a89a2dfe07b67892e62411946db7f07b0"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1342,6 +1332,12 @@ checksum = "8c37f63953c4c63420ed5fd3d6d398c719489b9f872b9fa683262f8edd363c7d"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "json"
+version = "0.12.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "078e285eafdfb6c4b434e0d31e8cfcb5115b651496faca5749b88fafd4f23bfd"
 
 [[package]]
 name = "language-tags"
@@ -2015,6 +2011,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d626bb9dae77e28219937af045c257c28bfd3f69333c512553507f5f9798cb76"
 
 [[package]]
+name = "rustc-serialize"
+version = "0.3.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe834bc780604f4674073badbad26d7219cadfb4a2275802db12cbae17498401"
+
+[[package]]
 name = "rustc_version"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2643,6 +2645,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c5713f0fc4b5db668a2ac63cdb7bb4469d8c9fed047b1d0292cc7b0ce2ba921"
 dependencies = [
  "tinyvec",
+]
+
+[[package]]
+name = "unlimited-poker"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "actix-web-lab",
+ "async-graphql",
+ "async-graphql-actix-web",
+ "async-stream",
+ "async-trait",
+ "deuces-rs",
+ "float-ord",
+ "futures-channel",
+ "futures-util",
+ "json",
+ "mockall",
+ "once_cell",
+ "prost 0.12.3",
+ "rust_decimal",
+ "rustc-serialize",
+ "serde",
+ "serde_json",
+ "slab",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

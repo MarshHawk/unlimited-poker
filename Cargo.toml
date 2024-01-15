@@ -1,5 +1,5 @@
 [package]
-name = "actix-gql-ws-stream"
+name = "unlimited-poker"
 version = "0.1.0"
 edition = "2021"
 
@@ -12,6 +12,7 @@ async-graphql = { version = "6.0.11", features = ["decimal"] }
 async-graphql-actix-web = "6.0.11"
 async-stream = "0.3.0"
 async-trait = "0.1.77"
+deuces-rs = "0.2.0"
 float-ord = "0.3.2"
 futures-channel = "0.3.0"
 futures-util = "0.3.0"
@@ -33,4 +34,7 @@ uuid = { version = "1.6.1", features = ["v4"] }
 tonic-build = "0.8"
 
 [dev-dependencies]
+json = "0.12.4"
 mockall = "0.12.1"
+rustc-serialize = "0.3.25"
+serde = { version = "1.0.193", features = ["derive"] }

@@ -7,7 +7,7 @@
 5. Players receive player events, street change events, and hand/table over events
 
 
-### 1. deal event
+### 1. deal event subscription
 ```gql
 subscription DealSubscription($mutationType: MutationType) {
   deal(mutationType: $mutationType) {
@@ -58,7 +58,7 @@ subscription DealSubscription($mutationType: MutationType) {
 }
 ```
 
-### 2. deal call
+### 2. deal mutation
 ```gql
 mutation DealHand($dealInput: DealInput!) {
     deal(dealInput: $dealInput)
@@ -94,7 +94,7 @@ mutation DealHand($dealInput: DealInput!) {
 }
 ```
 
-### 3. hand event
+### 3. hand event subscription
 ```graphql
 subscription OnHandEvent($mutationType: MutationType) {
   handEvent(mutationType: $mutationType) {
@@ -137,7 +137,7 @@ subscription OnHandEvent($mutationType: MutationType) {
 ```
 
 
-### 3. play (hand event)
+### 3. play mutation (for hand event subscription)
 ```gql
 mutation PlayTurn($id: ID!, $playerId: ID!, $action: PlayerAction!, $amount: Decimal!) {
   playTurn(id: $id, playerId: $playerId, action: $action, amount: $amount) {
