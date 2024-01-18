@@ -1,8 +1,5 @@
-use std::sync::Arc;
-
 use actix_web::{
-    get, guard, http::header::HeaderMap, web, App, HttpRequest, HttpResponse, HttpServer,
-    Responder, Result,
+    get, guard, http::header::HeaderMap, web, HttpRequest, HttpResponse, Responder, Result,
 };
 use actix_web_lab::respond::Html;
 use async_graphql::{
@@ -10,7 +7,6 @@ use async_graphql::{
     Data, Schema,
 };
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse, GraphQLSubscription};
-use futures_util::lock::Mutex;
 
 pub mod schema {
     include!("./schema/mod.rs");
