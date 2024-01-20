@@ -13,11 +13,13 @@ mod tests {
     #[actix_web::test]
     async fn test_index_get() {
         let schema = bootstrap_schema().await.unwrap();
-        let srv = actix_test::start(move || {
+        let mut srv = actix_test::start(move || {
             App::new()
                 .app_data(web::Data::new(schema.clone()))
                 .configure(bootstrap)
         });
+
+        let mut ws = srv.ws().await.unwrap();
 
         let mut file = File::open("tests/test.json").unwrap();
         let mut data = String::new();
