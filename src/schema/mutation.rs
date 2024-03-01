@@ -1,20 +1,36 @@
 use async_graphql::{Context, Object, Result, ID};
 use async_trait::async_trait;
+use deuces_rs::{builder::Dealer, GameDealer, RandomCardShuffler};
 use float_ord::FloatOrd;
 use rust_decimal::Decimal;
-use deuces_rs::{GameDealer, RandomCardShuffler, builder::Dealer};
+use std::mem;
 use tonic::Request;
+use uuid::Uuid;
+use tokio::time::{timeout, Duration};
+use mongodb::{Database};
+use mongodb::bson::{doc, Document};
+use mongodb::bson::to_bson;
 
 use crate::bootstrap::schema::{
     deal::{HandRequest, HandResponse},
     simple_broker::SimpleBroker,
-    DealEvent, DealService, HandEventPayload, HandToken, MutationType, Storage, TableToken,
+    DealEvent,
+    DealService,
+    HandEventPayload,
+    HandToken,
+    MutationType,
+    TableToken, // Storage, TableToken,
     UserToken,
 };
 
 use super::model::{
     ActivePlayer, Cards, DealInput, Hand, Player, PlayerAction, PlayerEvent, PlayerInput,
     StreetEvent, StreetType,
+};
+
+use darkbird::{
+    document::{self, RangeField},
+    Options, Storage, StorageType,
 };
 
 pub struct MutationRoot;
@@ -39,11 +55,13 @@ impl GameMutations for MutationRoot {
     async fn deal(&self, ctx: &Context<'_>, deal_input: DealInput) -> Result<ID> {
         println!("MutationRoot::deal");
 
-        let user_token = ctx.data::<UserToken>().unwrap().0.clone();
-        let table_token = ctx.data::<TableToken>().unwrap().0.clone();
+        // Get a handle to a collection in the database.
+
+        //let user_token = ctx.data::<UserToken>().unwrap().0.clone();
+        //let table_token = ctx.data::<TableToken>().unwrap().0.clone();
 
         //println!("user_token: {}", user_token);
-        println!("table_token: {}", table_token);
+        //println!("table_token: {}", table_token);
 
         // let deal_client = ctx.data_unchecked::<DealService>();
         // let req = Request::new(HandRequest {
@@ -51,16 +69,24 @@ impl GameMutations for MutationRoot {
         // });
 
         let shuffler = RandomCardShuffler;
-        let dealer: GameDealer<RandomCardShuffler>   = GameDealer::new(shuffler);
+        let dealer: GameDealer<RandomCardShuffler> = GameDealer::new(shuffler);
 
-        let deal_result = dealer.deal(3);//deal_client.lock().await.deal(req).await?.into_inner();
+        let deal_result = dealer.deal(3); //deal_client.lock().await.deal(req).await?.into_inner();
         let board = deal_result.board;
-        let mut hands = ctx.data_unchecked::<Storage>().lock().await;
-        let entry = hands.vacant_entry();
-        let id: ID = entry.key().into();
+        println!("Deal board: {:?}", board);
+        //let storage = ctx.data_unchecked::<Storage<String, Hand>>();
+        let db = ctx.data_unchecked::<Database>();
+        let collection = db.collection::<Document>("hands");
+        
+        // let mut hands = ctx.data_unchecked::<Storage::<String, Hand>>().lock().await;
+        // println!("Deal hands: {:?}", hands);
+        // let entry = hands.vacant_entry();
+        // let id: ID = entry.key().into();
+        let id = Uuid::new_v4();
+        println!("Deal ID: {}", id.to_string());
         //let id: ID = Uuid::new_v4().into();
         let hand = Hand {
-            id: id.clone(),
+            id: id.to_string().into(),
             table_id: deal_input.table_id.into(),
             players: deal_input
                 .players
@@ -110,13 +136,23 @@ impl GameMutations for MutationRoot {
 
         //println!("Deal requested, full hand: {:#?}", hand);
 
-        entry.insert(hand);
+        //entry.insert(hand);
+        //storage.insert(id.to_string().into(), hand).await.unwrap();
+        // Insert some documents into the "mydb.books" collection.
+        let hand_bson = to_bson(&hand)?;
+
+        match hand_bson {
+            mongodb::bson::Bson::Document(document) => {
+                collection.insert_one(document, None).await?;
+            }
+            _ => return Err("Error converting hand to BSON document".into()),
+        }
 
         SimpleBroker::publish(DealEvent {
             mutation_type: MutationType::Created,
-            id: id.clone(),
+            id: id.to_string().into(),
         });
-        Ok(id.clone())
+        Ok(id.to_string().into())
     }
 
     async fn play_turn(
@@ -131,16 +167,20 @@ impl GameMutations for MutationRoot {
 
         let user_token = ctx.data::<UserToken>().unwrap().0.clone();
         let hand_token = ctx.data::<HandToken>().unwrap().0.clone();
-
         println!("user_token: {}", user_token);
         println!("hand_token: {}", hand_token);
 
-        let mut hands = ctx.data_unchecked::<Storage>().lock().await;
-        let hand = hands
-            .get_mut(id.parse::<usize>()?)
-            .ok_or("Hand not found")?;
-
-        //TODO: update player event current stack correctly
+        //let mut hands = ctx.data_unchecked::<Storage::<String, Hand>>().lock().await;
+        //let hand = hands
+        //    .get_mut(id.parse::<usize>()?)
+        //    .ok_or("Hand not found")?;
+        let db = ctx.data_unchecked::<Database>();
+        let typed_collection = db.collection::<Hand>("hands");
+        let hand_option = typed_collection.find_one(doc! { "id": hand_token }, None).await?;
+        let mut hand = hand_option.ok_or_else(|| "No document found with the specified id".to_string())?;
+        // let storage = ctx.data_unchecked::<Storage<String, Hand>>();
+        // let hand = storage.lookup(&hand_token).unwrap();
+        // let mut hand = hand.value().clone();
 
         // get last player event:
         let last_player_event = hand.player_events.last().unwrap();
@@ -230,7 +270,7 @@ impl GameMutations for MutationRoot {
         };
 
         //
-        let game_over = active_player_count == 1
+        let game_over = next_active_player_count == 1
             || should_change_street && next_street_type == StreetType::Preflop;
         println!("game_over: {}", game_over);
         if game_over {
@@ -278,7 +318,21 @@ impl GameMutations for MutationRoot {
                     })
                     .collect(),
             };
-            self.deal(ctx, deal_input).await?;
+            println!("before storage");
+            let hand_bson = to_bson(&hand)?;
+            match hand_bson {
+                mongodb::bson::Bson::Document(document) => {
+                    let update = doc! { "$set": document };
+                    let upsert_result = typed_collection.find_one_and_update(doc! {"id": id.to_string()}, update, None).await?;
+                    println!("Updated document with ID: {:?}", upsert_result);
+                }
+                _ => return Err("Error converting hand to BSON document".into()),
+            }
+            // storage.insert(hand_token, hand).await.unwrap();
+            println!("Starting deal function");
+            let result = self.deal(ctx, deal_input).await;
+            println!("how to print line {:?}", result);
+            println!("Finished deal function");
         } else {
             println!("not game over block");
             // move current_active_player to end of active_players array:
@@ -286,16 +340,16 @@ impl GameMutations for MutationRoot {
             active_players.push(current_active_player);
 
             // TODO: rotate to next active player
-
+            println!("build next street event");
             let next_street_event = StreetEvent {
                 pot: last_street_event.pot,
                 current_active_players: active_players,
                 street_type: next_street_type,
                 //TODO: allowed actions
             };
-
+            println!("push next street event");
             hand.street_events.push(next_street_event.clone());
-
+            println!("build payload");
             let payload = HandEventPayload {
                 mutation_type: MutationType::Updated,
                 hand_id: id.clone(),
@@ -309,7 +363,16 @@ impl GameMutations for MutationRoot {
                 player_event: Some(hand.player_events.last().unwrap().clone()),
                 cards: None, //TODO: cards
             };
-
+            println!("before storage");
+            let hand_bson = to_bson(&hand)?;
+            match hand_bson {
+                mongodb::bson::Bson::Document(document) => {
+                    let update = doc! { "$set": document };
+                    let upsert_result = typed_collection.find_one_and_update(doc! {"id": id.to_string()}, update, None).await?;
+                    println!("Updated document with ID: {:?}", upsert_result);
+                }
+                _ => return Err("Error converting hand to BSON document".into()),
+            }
             SimpleBroker::publish(payload.clone());
         }
 
@@ -366,7 +429,6 @@ mod tests {
     use super::*;
     use async_graphql::{Context, Data, Enum, Object, Result, Schema, Subscription, ID};
     use mockall::automock;
-    use mockall::predicate::*;
     use mockall::mock;
-
+    use mockall::predicate::*;
 }

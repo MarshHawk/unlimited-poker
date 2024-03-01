@@ -1,7 +1,13 @@
 use async_graphql::*;
 use rust_decimal::Decimal;
 
-#[derive(Clone, Debug, PartialEq)]
+use darkbird::{
+    document::{self, RangeField},
+    Options, Storage, StorageType,
+};
+
+use serde_derive::{Deserialize, Serialize};
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Hand {
     pub id: ID,
     pub table_id: ID,
@@ -38,7 +44,40 @@ impl Hand {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+impl document::Document for Hand {}
+
+impl document::Indexer for Hand {
+    fn extract(&self) -> Vec<String> {
+        vec![]
+    }
+}
+
+impl document::Tags for Hand {
+    fn get_tags(&self) -> Vec<String> {
+        vec![]
+    }
+}
+
+impl document::Range for Hand {
+    fn get_fields(&self) -> Vec<RangeField> {
+        vec![]
+    }
+}
+
+impl document::MaterializedView for Hand {
+    fn filter(&self) -> Option<String> {
+        None
+    }
+}
+
+
+impl document::FullText for Hand {
+    fn get_content(&self) -> Option<String> {
+        None
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Cards {
     pub flop: Vec<String>,
     pub turn: String,
@@ -60,7 +99,7 @@ impl Cards {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct PlayerEvent {
     pub player_id: ID,
     pub action: PlayerAction,
@@ -97,14 +136,14 @@ impl PlayerEvent {
     }
 }
 
-#[derive(Debug, Enum, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Enum, Eq, PartialEq, Copy, Clone, Deserialize, Serialize)]
 pub enum PlayerAction {
     Bet,
     Check,
     Fold,
 }
 
-#[derive(Debug, Enum, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Enum, Eq, PartialEq, Copy, Clone, Deserialize, Serialize)]
 pub enum StreetType {
     Preflop,
     Flop,
@@ -112,7 +151,7 @@ pub enum StreetType {
     River,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct StreetEvent {
     pub street_type: StreetType,
     pub current_active_players: Vec<ActivePlayer>,
@@ -135,7 +174,7 @@ impl StreetEvent {
 
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ActivePlayer {
     pub id: ID,
     pub bet: Decimal,
@@ -173,7 +212,7 @@ pub struct DealInput {
     pub table_id: ID,
 }
 
-#[derive(Clone, Debug, PartialEq, InputObject)]
+#[derive(Clone, Debug, PartialEq, InputObject, Deserialize, Serialize)]
 pub struct Player {
     pub id: ID,
     pub stack: Decimal,

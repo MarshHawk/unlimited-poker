@@ -12,14 +12,16 @@ async-graphql = { version = "6.0.11", features = ["decimal"] }
 async-graphql-actix-web = "6.0.11"
 async-stream = "0.3.0"
 async-trait = "0.1.77"
-deuces-rs = "0.2.0"
+darkbird = "6.2.4"
+deuces-rs = "0.3.0"
 float-ord = "0.3.2"
 futures-channel = "0.3.0"
 futures-util = "0.3.0"
 once_cell = "1.0"
 prost = "0.12.1"
 rust_decimal = "1.33.1"
-serde = { version = "1.0.193", features = ["derive"] }
+serde = { version = "1.0.192", features = ["derive"] }
+serde_derive = { version = "1.0.197", features = ["deserialize_in_place"] }
 serde_json = "1.0.108"
 slab = "0.4.9"
 tokio = { version = "1.34.0", features = ["full"] }
@@ -29,6 +31,9 @@ tonic-build = "0.8"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 uuid = { version = "1.6.1", features = ["v4"] }
+mongodb = "2.8.1"
+bson = "2.9.0"
+futures = "0.3.30"
 
 [build-dependencies]
 tonic-build = "0.8"
@@ -39,3 +44,5 @@ actix-test = "0.1.2"
 json = "0.12.4"
 mockall = "0.12.1"
 serde = { version = "1.0.193", features = ["derive"] }
+url = "2.5.0"
+websocket = "0.27.0"

@@ -7,21 +7,32 @@ use async_graphql::{
     Data, Schema,
 };
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse, GraphQLSubscription};
+use darkbird::{
+    document::{self, RangeField},
+    Options, Storage, StorageType,
+};
+//use serde_derive::{Deserialize, Serialize};
+use mongodb::{options::ClientOptions, Client};
+use mongodb::options::Credential;
+use serde::{Deserialize, Serialize};
+use std::env;
 
+use crate::bootstrap::schema::model::Hand;
 pub mod schema {
     include!("./schema/mod.rs");
 }
 use schema::{
-    mutation::MutationRoot, HandToken, PokerSchema, QueryRoot, Storage, SubscriptionRoot,
-    TableToken, UserToken,
+    mutation::MutationRoot, HandToken, PokerSchema, QueryRoot, SubscriptionRoot, TableToken,
+    UserToken,
 };
 
-use schema::deal::dealer_client::DealerClient;
-
 fn get_user_token_from_headers(headers: &HeaderMap) -> Option<UserToken> {
-    headers
+    let token = headers
         .get("x-user-token")
-        .and_then(|value| value.to_str().map(|s| UserToken(s.to_string())).ok())
+        .and_then(|value| value.to_str().map(|s| UserToken(s.to_string())).ok());
+    println!("get user token from headers");
+    println!("token: {:?}", token);
+    token
 }
 
 fn get_table_token_from_headers(headers: &HeaderMap) -> Option<TableToken> {
@@ -38,7 +49,7 @@ fn get_hand_token_from_headers(headers: &HeaderMap) -> Option<HandToken> {
 
 pub async fn on_connection_init(value: serde_json::Value) -> async_graphql::Result<Data> {
     println!("on_connection_init");
-    // println!("{:?}", value);
+    println!("{:?}", value);
 
     let mut data = Data::default();
 
@@ -46,6 +57,7 @@ pub async fn on_connection_init(value: serde_json::Value) -> async_graphql::Resu
         .get("x-user-token")
         .and_then(|user_token| user_token.as_str())
     {
+        println!("insert user token");
         data.insert(UserToken(user_token.to_string()));
     }
 
@@ -111,12 +123,35 @@ async fn graphql_playground() -> impl Responder {
     ))
 }
 
-pub async fn bootstrap_schema() -> Result<Schema<QueryRoot, MutationRoot, SubscriptionRoot>, Box<dyn std::error::Error>> {
-    // let deal_client: schema::DealService = Arc::new(Mutex::new(
-    //     DealerClient::connect("http://127.0.0.1:5003").await?,
-    // ));
+pub async fn bootstrap_schema(
+) -> Result<Schema<QueryRoot, MutationRoot, SubscriptionRoot>, Box<dyn std::error::Error>> {
+    let path = ".";
+    let storage_name = "blackbird";
+    let total_page_size = 1000;
+    let mut client_options = ClientOptions::parse("mongodb://localhost:27017").await?;
+    let creds = Credential::builder()
+    .username("root".to_string())
+    .password("example".to_string())
+    .build();
+    client_options.credential = Some(creds.clone());
+    println!("Username: {}, Password: {}", creds.username.unwrap(), creds.password.unwrap());
+
+    // Get a handle to the deployment.
+    let client = Client::with_options(client_options)?;
+    let db = client.database("poker");
+    //let hands_collection = db.collection("hands");
+    let stype = StorageType::RamCopies;
+    let ops = Options::new(
+        path,
+        storage_name,
+        total_page_size,
+        StorageType::RamCopies,
+        true,
+    );
+    let storage = Storage::<String, Hand>::open(ops).await.unwrap();
     Ok(Schema::build(QueryRoot, MutationRoot, SubscriptionRoot)
-        .data(Storage::default())
+        .data(storage)
+        .data(db)
         // .data(deal_client)
         .finish())
 }
@@ -124,8 +159,7 @@ pub async fn bootstrap_schema() -> Result<Schema<QueryRoot, MutationRoot, Subscr
 pub fn bootstrap(cfg: &mut web::ServiceConfig) {
     println!("Bootstrap GraphiQL IDE: http://localhost:8097");
 
-    cfg
-        .service(web::resource("/graphql").guard(guard::Post()).to(index))
+    cfg.service(web::resource("/graphql").guard(guard::Post()).to(index))
         .service(
             web::resource("/ws")
                 .guard(guard::Get())

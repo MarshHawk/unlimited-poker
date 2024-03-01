@@ -1,15 +1,25 @@
 use std::{sync::Arc, time::Duration};
 
 use async_graphql::{Context, Enum, Object, Result, Schema, Subscription, ID};
+use float_ord::FloatOrd;
+use futures::stream::TryStreamExt;
 use futures_util::{lock::Mutex, Stream, StreamExt};
 use rust_decimal::Decimal;
 use slab::Slab;
-use float_ord::FloatOrd;
 
 use tonic::Request;
 use uuid::Uuid;
 
-mod model;
+use darkbird::{
+    document::{self, RangeField},
+    Options, Storage, StorageType,
+};
+
+use mongodb::bson::to_bson;
+use mongodb::bson::{doc, Document};
+use mongodb::Database;
+
+pub mod model;
 use model::{
     ActivePlayer, Cards, DealInput, Hand, PlayerAction, PlayerEvent, PlayerInput, StreetEvent,
     StreetType,
@@ -28,10 +38,11 @@ use deal::{HandRequest, HandResponse};
 
 pub type PokerSchema = Schema<QueryRoot, MutationRoot, SubscriptionRoot>;
 
-pub type Storage = Arc<Mutex<Slab<Hand>>>;
+//pub type Storage = Arc<Mutex<Slab<Hand>>>;
 
 pub type DealService = Arc<Mutex<DealerClient<tonic::transport::Channel>>>;
 
+#[derive(Debug)]
 pub struct UserToken(pub String);
 
 pub struct TableToken(pub String);
@@ -77,10 +88,20 @@ impl DealEvent {
         &self.id
     }
 
-    async fn deal(&self, ctx: &Context<'_>) -> Result<Option<Hand>> {
-        let hands = ctx.data_unchecked::<Storage>().lock().await;
-        let id = self.id.parse::<usize>()?;
-        Ok(hands.get(id).cloned())
+    async fn deal(&self, ctx: &Context<'_>) -> Result<Hand> {
+        let db = ctx.data_unchecked::<Database>();
+        let typed_collection = db.collection::<Hand>("hands");
+        let id = self.id.parse::<String>()?;
+        println!("id for mongo: {:#?}", id);
+        let hand_option = typed_collection.find_one(doc! { "id": id }, None).await?;
+        let hand = hand_option.ok_or_else(|| "No document found with the specified id".to_string())?;
+        println!("here is the hand: {:?}", hand);
+        //let mut fcursor = typed_collection.find(doc! { "id": id }, None).await?;
+        //let fhand = fcursor.try_next().await?;
+        //let hand_option = cursor.try_next().await?;
+        //let hand = hand_option.ok_or("No document found with the specified id")?;
+
+        Ok(hand)
     }
 }
 
@@ -121,8 +142,7 @@ pub struct QueryRoot;
 #[Object]
 impl QueryRoot {
     async fn hands(&self, ctx: &Context<'_>) -> Vec<Hand> {
-        let hands = ctx.data_unchecked::<Storage>().lock().await;
-        hands.iter().map(|(_, book)| book).cloned().collect()
+        Vec::new()
     }
 }
 
