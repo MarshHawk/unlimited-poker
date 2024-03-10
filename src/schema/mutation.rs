@@ -170,17 +170,10 @@ impl GameMutations for MutationRoot {
         println!("user_token: {}", user_token);
         println!("hand_token: {}", hand_token);
 
-        //let mut hands = ctx.data_unchecked::<Storage::<String, Hand>>().lock().await;
-        //let hand = hands
-        //    .get_mut(id.parse::<usize>()?)
-        //    .ok_or("Hand not found")?;
         let db = ctx.data_unchecked::<Database>();
         let typed_collection = db.collection::<Hand>("hands");
         let hand_option = typed_collection.find_one(doc! { "id": hand_token }, None).await?;
         let mut hand = hand_option.ok_or_else(|| "No document found with the specified id".to_string())?;
-        // let storage = ctx.data_unchecked::<Storage<String, Hand>>();
-        // let hand = storage.lookup(&hand_token).unwrap();
-        // let mut hand = hand.value().clone();
 
         // get last player event:
         let last_player_event = hand.player_events.last().unwrap();
@@ -218,7 +211,6 @@ impl GameMutations for MutationRoot {
 
         let last_street_event: &mut StreetEvent = hand.street_events.iter_mut().last().unwrap();
 
-        //let mut pot = last_street_event.pot;
         if action == PlayerAction::Bet {
             last_street_event.pot += amount;
         }
@@ -247,10 +239,7 @@ impl GameMutations for MutationRoot {
             "active_player_count after fold: {}",
             next_active_player_count
         );
-        // Update pot on hand from last street event:
-        // println!("active_player_count after fold: {}", next_active_player_count);
 
-        // determine if all active players have equal sized bets:
         let all_bets_equal = active_players.iter_mut().all(|p| p.bet == current_bet);
 
         let is_last_active_player = active_players.iter_mut().last().unwrap().id == player_id;
@@ -269,7 +258,6 @@ impl GameMutations for MutationRoot {
             last_street_event.street_type
         };
 
-        //
         let game_over = next_active_player_count == 1
             || should_change_street && next_street_type == StreetType::Preflop;
         println!("game_over: {}", game_over);
@@ -354,12 +342,6 @@ impl GameMutations for MutationRoot {
                 mutation_type: MutationType::Updated,
                 hand_id: id.clone(),
                 street_event: Some(next_street_event),
-                //if should_change_street {
-                //let mut next_street_event = last_street_event.clone();
-                // Some(next_street_event)
-                //} else {
-                //   None
-                //},
                 player_event: Some(hand.player_events.last().unwrap().clone()),
                 cards: None, //TODO: cards
             };

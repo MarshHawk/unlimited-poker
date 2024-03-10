@@ -1,5 +1,12 @@
 version: '3.8'
 services:
+  kafka:
+    image: spotify/kafka
+    environment:
+      ADVERTISED_HOST: 0.0.0.0
+      ADVERTISED_PORT: 9092
+    ports:
+      - 9092:9092
   mongodb:
     image: mongo:latest
     container_name: mongodb

@@ -12,8 +12,8 @@ use darkbird::{
     Options, Storage, StorageType,
 };
 //use serde_derive::{Deserialize, Serialize};
-use mongodb::{options::ClientOptions, Client};
 use mongodb::options::Credential;
+use mongodb::{options::ClientOptions, Client};
 use serde::{Deserialize, Serialize};
 use std::env;
 
@@ -123,34 +123,74 @@ async fn graphql_playground() -> impl Responder {
     ))
 }
 
+pub fn kafka_seed() -> String {
+    std::env::var("KAFKA_SEED").unwrap_or_else(|_| {
+        let kafka_seed = "127.0.0.1:9092".to_string();
+        warn!("using default kafka seed, {}", kafka_seed);
+        kafka_seed
+    })
+}
+
+fn new_consumer(brokers: String, topics: &[String]) -> Result<StreamConsumer, KafkaError> {
+    let msg = topics.join(" ");
+    info!("subscribing to topics {}", msg);
+    let stream_consumer: StreamConsumer = ClientConfig::new()
+        .set("group.id", "test-group")
+        .set("bootstrap.servers", &brokers)
+        .set("auto.offset.reset", "latest")
+        .set("enable.partition.eof", "true")
+        .set("session.timeout.ms", "6000")
+        .set("enable.auto.commit", "true")
+        .set_log_level(RDKafkaLogLevel::Debug)
+        .create()?;
+    let topics = topics
+        .iter()
+        .map(|topic| topic.as_str())
+        .collect::<Vec<&str>>();
+    stream_consumer.subscribe(topics.as_slice())?;
+    Ok(stream_consumer)
+}
+
 pub async fn bootstrap_schema(
 ) -> Result<Schema<QueryRoot, MutationRoot, SubscriptionRoot>, Box<dyn std::error::Error>> {
-    let path = ".";
-    let storage_name = "blackbird";
-    let total_page_size = 1000;
+    // mongo
     let mut client_options = ClientOptions::parse("mongodb://localhost:27017").await?;
     let creds = Credential::builder()
-    .username("root".to_string())
-    .password("example".to_string())
-    .build();
+        .username("root".to_string())
+        .password("example".to_string())
+        .build();
     client_options.credential = Some(creds.clone());
-    println!("Username: {}, Password: {}", creds.username.unwrap(), creds.password.unwrap());
-
-    // Get a handle to the deployment.
+    println!(
+        "Username: {}, Password: {}",
+        creds.username.unwrap(),
+        creds.password.unwrap()
+    );
     let client = Client::with_options(client_options)?;
     let db = client.database("poker");
-    //let hands_collection = db.collection("hands");
-    let stype = StorageType::RamCopies;
-    let ops = Options::new(
-        path,
-        storage_name,
-        total_page_size,
-        StorageType::RamCopies,
-        true,
-    );
-    let storage = Storage::<String, Hand>::open(ops).await.unwrap();
+
+    //let kafka_consumer: StreamConsumer = ClientConfig::new()
+    //    .set("group.id", "test-group")
+    //    .set("bootstrap.servers", &brokers)
+    //    .set("auto.offset.reset", "latest")
+    //    .set("enable.partition.eof", "true")
+    //    .set("session.timeout.ms", "6000")
+    //    .set("enable.auto.commit", "true")
+    //    .set_log_level(RDKafkaLogLevel::Debug)
+    //    .create()?;
+    //let topics = topics
+    //    .iter()
+    //    .map(|topic| topic.as_str())
+    //    .collect::<Vec<&str>>();
+    //stream_consumer.subscribe(topics.as_slice())?;
+//
+    //let kafka_host = kafka_seed();
+    //let kafka_producer = ClientConfig::new()
+    //    .set("bootstrap.servers", brokers)
+    //    .set("produce.offset.report", "true")
+    //    .set("message.timeout.ms", "5000")
+    //    .create();
+
     Ok(Schema::build(QueryRoot, MutationRoot, SubscriptionRoot)
-        .data(storage)
         .data(db)
         // .data(deal_client)
         .finish())
