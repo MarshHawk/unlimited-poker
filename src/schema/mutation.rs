@@ -2,14 +2,17 @@ use async_graphql::{Context, Object, Result, ID};
 use async_trait::async_trait;
 use deuces_rs::{builder::Dealer, GameDealer, RandomCardShuffler};
 use float_ord::FloatOrd;
+use mongodb::bson::to_bson;
+use mongodb::bson::{doc, Document};
+use mongodb::Database;
+use rdkafka::message::{Header, OwnedHeaders};
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::util::get_rdkafka_version;
 use rust_decimal::Decimal;
 use std::mem;
+use tokio::time::{timeout, Duration};
 use tonic::Request;
 use uuid::Uuid;
-use tokio::time::{timeout, Duration};
-use mongodb::{Database};
-use mongodb::bson::{doc, Document};
-use mongodb::bson::to_bson;
 
 use crate::bootstrap::schema::{
     deal::{HandRequest, HandResponse},
@@ -26,11 +29,6 @@ use crate::bootstrap::schema::{
 use super::model::{
     ActivePlayer, Cards, DealInput, Hand, Player, PlayerAction, PlayerEvent, PlayerInput,
     StreetEvent, StreetType,
-};
-
-use darkbird::{
-    document::{self, RangeField},
-    Options, Storage, StorageType,
 };
 
 pub struct MutationRoot;
@@ -77,7 +75,7 @@ impl GameMutations for MutationRoot {
         //let storage = ctx.data_unchecked::<Storage<String, Hand>>();
         let db = ctx.data_unchecked::<Database>();
         let collection = db.collection::<Document>("hands");
-        
+
         // let mut hands = ctx.data_unchecked::<Storage::<String, Hand>>().lock().await;
         // println!("Deal hands: {:?}", hands);
         // let entry = hands.vacant_entry();
@@ -170,10 +168,14 @@ impl GameMutations for MutationRoot {
         println!("user_token: {}", user_token);
         println!("hand_token: {}", hand_token);
 
+        let producer = ctx.data_unchecked::<FutureProducer>();
         let db = ctx.data_unchecked::<Database>();
         let typed_collection = db.collection::<Hand>("hands");
-        let hand_option = typed_collection.find_one(doc! { "id": hand_token }, None).await?;
-        let mut hand = hand_option.ok_or_else(|| "No document found with the specified id".to_string())?;
+        let hand_option = typed_collection
+            .find_one(doc! { "id": hand_token }, None)
+            .await?;
+        let mut hand =
+            hand_option.ok_or_else(|| "No document found with the specified id".to_string())?;
 
         // get last player event:
         let last_player_event = hand.player_events.last().unwrap();
@@ -311,7 +313,9 @@ impl GameMutations for MutationRoot {
             match hand_bson {
                 mongodb::bson::Bson::Document(document) => {
                     let update = doc! { "$set": document };
-                    let upsert_result = typed_collection.find_one_and_update(doc! {"id": id.to_string()}, update, None).await?;
+                    let upsert_result = typed_collection
+                        .find_one_and_update(doc! {"id": id.to_string()}, update, None)
+                        .await?;
                     println!("Updated document with ID: {:?}", upsert_result);
                 }
                 _ => return Err("Error converting hand to BSON document".into()),
@@ -350,10 +354,46 @@ impl GameMutations for MutationRoot {
             match hand_bson {
                 mongodb::bson::Bson::Document(document) => {
                     let update = doc! { "$set": document };
-                    let upsert_result = typed_collection.find_one_and_update(doc! {"id": id.to_string()}, update, None).await?;
+                    let upsert_result = typed_collection
+                        .find_one_and_update(doc! {"id": id.to_string()}, update, None)
+                        .await?;
                     println!("Updated document with ID: {:?}", upsert_result);
                 }
                 _ => return Err("Error converting hand to BSON document".into()),
+            }
+
+            let topic = "loony_topic";
+            let hand_id = &hand.id.as_str();
+
+            //serde_json::to_string(&hand).unwrap();
+
+            let futures = (0..5)
+                .map(|i| async move {
+                    // The send operation on the topic returns a future, which will be
+                    // completed once the result or failure from Kafka is received.
+                    let delivery_status = producer
+                        .send(
+                            FutureRecord::to(topic)
+                                .payload(&format!("Message {}", i))
+                                .key(&format!("Key {}", i))
+                                .headers(OwnedHeaders::new().insert(Header {
+                                    key: "header_key",
+                                    value: Some("header_value"),
+                                })),
+                            Duration::from_secs(0),
+                        )
+                        .await;
+
+                    // This will be executed when the result is received.
+                    // println("Delivery status for message {} received", i);
+                    delivery_status
+                })
+                .collect::<Vec<_>>();
+
+            // This loop will wait until all delivery statuses have been received.
+            for future in futures {
+                println!("Future completed. Result: {:?}", future.await);
+                //info!("Future completed. Result: {:?}", future.await);
             }
             SimpleBroker::publish(payload.clone());
         }

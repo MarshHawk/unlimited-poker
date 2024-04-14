@@ -1,11 +1,6 @@
 use async_graphql::*;
 use rust_decimal::Decimal;
 
-use darkbird::{
-    document::{self, RangeField},
-    Options, Storage, StorageType,
-};
-
 use serde_derive::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Hand {
@@ -41,39 +36,6 @@ impl Hand {
 
     async fn street_events(&self) -> &[StreetEvent] {
         &self.street_events
-    }
-}
-
-impl document::Document for Hand {}
-
-impl document::Indexer for Hand {
-    fn extract(&self) -> Vec<String> {
-        vec![]
-    }
-}
-
-impl document::Tags for Hand {
-    fn get_tags(&self) -> Vec<String> {
-        vec![]
-    }
-}
-
-impl document::Range for Hand {
-    fn get_fields(&self) -> Vec<RangeField> {
-        vec![]
-    }
-}
-
-impl document::MaterializedView for Hand {
-    fn filter(&self) -> Option<String> {
-        None
-    }
-}
-
-
-impl document::FullText for Hand {
-    fn get_content(&self) -> Option<String> {
-        None
     }
 }
 

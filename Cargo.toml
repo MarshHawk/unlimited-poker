@@ -12,7 +12,6 @@ async-graphql = { version = "6.0.11", features = ["decimal"] }
 async-graphql-actix-web = "6.0.11"
 async-stream = "0.3.0"
 async-trait = "0.1.77"
-darkbird = "6.2.4"
 deuces-rs = "0.3.0"
 float-ord = "0.3.2"
 futures-channel = "0.3.0"
@@ -35,7 +34,6 @@ mongodb = "2.8.1"
 bson = "2.9.0"
 futures = "0.3.30"
 rdkafka = "0.36.2"
-rdkafka-sys = "4.7.0"
 
 [build-dependencies]
 tonic-build = "0.8"

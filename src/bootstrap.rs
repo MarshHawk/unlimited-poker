@@ -7,15 +7,16 @@ use async_graphql::{
     Data, Schema,
 };
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse, GraphQLSubscription};
-use darkbird::{
-    document::{self, RangeField},
-    Options, Storage, StorageType,
-};
 //use serde_derive::{Deserialize, Serialize};
 use mongodb::options::Credential;
 use mongodb::{options::ClientOptions, Client};
+use rdkafka::consumer::StreamConsumer;
+use rdkafka::error::KafkaError;
 use serde::{Deserialize, Serialize};
 use std::env;
+use rdkafka::message::{Header, OwnedHeaders};
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::util::get_rdkafka_version;
 
 use crate::bootstrap::schema::model::Hand;
 pub mod schema {
@@ -26,6 +27,25 @@ use schema::{
     UserToken,
 };
 
+use rdkafka::client::ClientContext;
+use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
+use rdkafka::consumer::{BaseConsumer, CommitMode, Consumer, ConsumerContext, Rebalance};
+use rdkafka::error::KafkaResult;
+use rdkafka::message::{Headers, Message};
+use rdkafka::topic_partition_list::TopicPartitionList;
+
+// A context can be used to change the behavior of producers and consumers by adding callbacks
+// that will be executed by librdkafka.
+// This particular context sets up custom callbacks to log rebalancing events.
+struct ConsumerTestContext;
+
+impl ClientContext for ConsumerTestContext {}
+
+impl ConsumerContext for ConsumerTestContext {
+    fn commit_callback(&self, result: KafkaResult<()>, _offsets: &TopicPartitionList) {
+        println!("Committing offsets: {:?}", result);
+    }
+}
 fn get_user_token_from_headers(headers: &HeaderMap) -> Option<UserToken> {
     let token = headers
         .get("x-user-token")
@@ -126,14 +146,14 @@ async fn graphql_playground() -> impl Responder {
 pub fn kafka_seed() -> String {
     std::env::var("KAFKA_SEED").unwrap_or_else(|_| {
         let kafka_seed = "127.0.0.1:9092".to_string();
-        warn!("using default kafka seed, {}", kafka_seed);
+        ///warn!("using default kafka seed, {}", kafka_seed);
         kafka_seed
     })
 }
 
 fn new_consumer(brokers: String, topics: &[String]) -> Result<StreamConsumer, KafkaError> {
     let msg = topics.join(" ");
-    info!("subscribing to topics {}", msg);
+    // info!("subscribing to topics {}", msg);
     let stream_consumer: StreamConsumer = ClientConfig::new()
         .set("group.id", "test-group")
         .set("bootstrap.servers", &brokers)
@@ -168,31 +188,45 @@ pub async fn bootstrap_schema(
     let client = Client::with_options(client_options)?;
     let db = client.database("poker");
 
-    //let kafka_consumer: StreamConsumer = ClientConfig::new()
-    //    .set("group.id", "test-group")
-    //    .set("bootstrap.servers", &brokers)
-    //    .set("auto.offset.reset", "latest")
-    //    .set("enable.partition.eof", "true")
-    //    .set("session.timeout.ms", "6000")
-    //    .set("enable.auto.commit", "true")
-    //    .set_log_level(RDKafkaLogLevel::Debug)
-    //    .create()?;
     //let topics = topics
     //    .iter()
     //    .map(|topic| topic.as_str())
     //    .collect::<Vec<&str>>();
     //stream_consumer.subscribe(topics.as_slice())?;
-//
-    //let kafka_host = kafka_seed();
+    //
+    let topics = vec!["loony_topic".to_string()];
+    let kafka_host = kafka_seed();
+    let kafka_consumer: StreamConsumer = ClientConfig::new()
+        .set("group.id", "test-group")
+        .set("bootstrap.servers", &kafka_host)
+        .set("auto.offset.reset", "latest")
+        .set("enable.partition.eof", "false")
+        .set("session.timeout.ms", "6000")
+        .set("enable.auto.commit", "true")
+        .set_log_level(RDKafkaLogLevel::Debug)
+        .create()?;
+
+    let topics = topics
+        .iter()
+        .map(|topic| topic.as_str())
+        .collect::<Vec<&str>>();
+    kafka_consumer.subscribe(topics.as_slice())?;
+    let kafka_producer: FutureProducer = ClientConfig::new()
+        .set("bootstrap.servers", kafka_host)
+        .set("message.timeout.ms", "5000")
+        .create()
+        .expect("Producer creation error");
+
     //let kafka_producer = ClientConfig::new()
-    //    .set("bootstrap.servers", brokers)
+    //    .set("bootstrap.servers", kafka_host)
     //    .set("produce.offset.report", "true")
     //    .set("message.timeout.ms", "5000")
-    //    .create();
+    //    .create::<FutureProducer>();
 
     Ok(Schema::build(QueryRoot, MutationRoot, SubscriptionRoot)
         .data(db)
-        // .data(deal_client)
+        .data(kafka_consumer)
+        .data(kafka_producer)
         .finish())
 }
 

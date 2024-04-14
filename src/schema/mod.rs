@@ -3,17 +3,15 @@ use std::{sync::Arc, time::Duration};
 use async_graphql::{Context, Enum, Object, Result, Schema, Subscription, ID};
 use float_ord::FloatOrd;
 use futures::stream::TryStreamExt;
-use futures_util::{lock::Mutex, Stream, StreamExt};
+use futures::StreamExt;
+use futures_util::{lock::Mutex, Stream};
+use rdkafka::consumer::{Consumer, StreamConsumer};
 use rust_decimal::Decimal;
 use slab::Slab;
+use rdkafka::message::{Headers, Message};
 
 use tonic::Request;
 use uuid::Uuid;
-
-use darkbird::{
-    document::{self, RangeField},
-    Options, Storage, StorageType,
-};
 
 use mongodb::bson::to_bson;
 use mongodb::bson::{doc, Document};
@@ -37,8 +35,6 @@ use deal::dealer_client::DealerClient;
 use deal::{HandRequest, HandResponse};
 
 pub type PokerSchema = Schema<QueryRoot, MutationRoot, SubscriptionRoot>;
-
-//pub type Storage = Arc<Mutex<Slab<Hand>>>;
 
 pub type DealService = Arc<Mutex<DealerClient<tonic::transport::Channel>>>;
 
@@ -94,7 +90,8 @@ impl DealEvent {
         let id = self.id.parse::<String>()?;
         println!("id for mongo: {:#?}", id);
         let hand_option = typed_collection.find_one(doc! { "id": id }, None).await?;
-        let hand = hand_option.ok_or_else(|| "No document found with the specified id".to_string())?;
+        let hand =
+            hand_option.ok_or_else(|| "No document found with the specified id".to_string())?;
         println!("here is the hand: {:?}", hand);
         //let mut fcursor = typed_collection.find(doc! { "id": id }, None).await?;
         //let fhand = fcursor.try_next().await?;
@@ -170,6 +167,25 @@ impl SubscriptionRoot {
                 true
             };
             async move { res }
+        })
+    }
+
+    async fn kafka_test<'a>(&self, ctx: &'a Context<'a>) -> impl Stream<Item = String> + 'a {
+        let consumer: &'a StreamConsumer = ctx.data_unchecked::<StreamConsumer>();
+        let message_stream = consumer.stream();
+    
+        message_stream.filter_map(|message_result| {
+            async move {
+                match message_result {
+                    Ok(message) => {
+                        message.payload_view::<str>().unwrap_or(Ok("")).ok().map(|s| s.to_string())
+                    }
+                    Err(e) => {
+                        eprintln!("Error receiving message: {}", e);
+                        None
+                    }
+                }
+            }
         })
     }
 
